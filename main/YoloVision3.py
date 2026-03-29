@@ -6,12 +6,13 @@ import numpy as np
 from TextDetection2 import SymbolClassifier
 from pathlib import Path
 from Coardinate import get_real_coords
+from bufer import Scene, Letter
 
 # --- Настройка путей и шрифта ---
 MODEL_DIR = Path(__file__).parent.parent / "Models"
 # Стандартный путь к шрифту в Windows. Если у вас его нет, замените на любой .ttf
 FONT_PATH = "C:/Windows/Fonts/arial.ttf" 
-
+sc = Scene()
 def draw_russian_text(image, text, position, font_path, font_size=24, color=(0, 255, 0)):
     """Функция для отрисовки текста с поддержкой кириллицы"""
     # Конвертируем BGR (OpenCV) -> RGB (PIL)
@@ -44,7 +45,7 @@ while cap.isOpened():
         break
 
     # 1. YOLO ищет объекты (используем device='cuda' для надежности)
-    results = detector(frame, stream=0, conf=0.9, device='cuda')
+    results = detector(frame, stream=0, conf=0.8, device='cuda')
 
     for r in results:
         boxes = r.boxes
@@ -69,6 +70,8 @@ while cap.isOpened():
                 continue
 
             # 4. ВИЗУАЛИЗАЦИЯ
+            # Добаваляем в сцену объект
+            sc.handle_detection(x=xr, y=yr, angle=0, label=label)
             # Рисуем рамку средствами OpenCV
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
             

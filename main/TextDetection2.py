@@ -23,6 +23,7 @@ class SymbolClassifier:
         num_ftrs = self.model.fc.in_features
         self.model.fc = nn.Linear(num_ftrs, len(self.class_names))
         
+        
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Веса не найдены: {model_path}")
             
