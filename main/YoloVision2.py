@@ -60,7 +60,7 @@ while cap.isOpened():
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
     # Показываем результат
-    cv2.imshow("YOLO + ResNet Classification", frame)
+    # cv2.imshow("YOLO + ResNet Classification", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
