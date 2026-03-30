@@ -30,7 +30,7 @@ height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 print(f"Камера определена: {width}x{height}")
 
 # Настройка записи (теперь с правильным размером)
-fourcc = cv2.VideoWriter_fourcc(*'XVID')
+fourcc = cv2.VideoWriter_fourcc(*'MJPG')
 out = cv2.VideoWriter('output_vision.avi', fourcc, 10.0, (width, height))
 
 print("Запись пошла! Для остановки нажми Ctrl+C в терминале.")
