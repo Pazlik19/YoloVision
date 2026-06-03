@@ -38,83 +38,132 @@ def get_real_coords(u, v, H):
 
     # Возвращаем округленные до 2 знаков координаты
     return round(x_real, 2), round(y_real, 2)
-# Тебе нужно будет заранее сохранить идеальные, ровные картинки каждой буквы
-# в папку "templates" (например, A.jpg, B.jpg и т.д.)
-TEMPLATES_DIR = "templates/"
+# --- Определение угла поворота оранжевого кубика ---
+# Кубик квадратный, поэтому угол определяется по модулю 90° (для захвата
+# манипулятором этого достаточно — схват одинаков в 4 ориентациях).
+# Метод: выделяем кубик маской по цвету в HSV -> берём минимальный
+# описывающий прямоугольник (cv2.minAreaRect) -> нормируем угол в [0, 90).
+# Это в сотни раз быстрее перебора поворотов шаблона и не требует шаблонов.
 
-# Словарь для кэширования шаблонов, чтобы не читать их с диска каждый кадр
-loaded_templates = {}
-def get_angel(crop, label, templates_dir="templates"): # 1. Исправили регистр папки по умолчанию
-    """
-    Повышенная точность расчета угла поворота объекта (до 1 градуса).
-    Приводит изображения к квадрату во избежание обрезки краев.
-    """
-    if len(crop.shape) == 3:
-        crop_gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-    else:
-        crop_gray = crop.copy()
-        
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    crop_gray = clahe.apply(crop_gray)
+# Диапазон оранжевого в HSV (OpenCV: H 0..179). Подстрой под своё освещение.
+ORANGE_LOWER = np.array([5, 80, 80], dtype=np.uint8)
+ORANGE_UPPER = np.array([25, 255, 255], dtype=np.uint8)
 
-    # 2. Загрузка шаблона
-    template_path = f"{templates_dir}/{label}.jpg" 
-    template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
-    
-    if template is None:
-        print(f"Предупреждение: Шаблон для класса '{label}' не найден по пути: {template_path}")
+
+def _normalize_angle_90(angle: float) -> float:
+    """Приводит угол к диапазону [0, 90) — учёт симметрии квадрата."""
+    angle = angle % 90.0
+    if angle < 0:
+        angle += 90.0
+    return angle
+
+
+def get_angel(crop, label=None, lower=ORANGE_LOWER, upper=ORANGE_UPPER):
+    """
+    Угол поворота кубика в кадре по его оранжевой грани.
+
+    crop  : BGR-изображение вырезанного кубика (как из frame[y1:y2, x1:x2]).
+    label  : не используется (оставлен для совместимости со старым вызовом).
+    return: угол в градусах [0, 90), или 0 если кубик не выделился.
+    """
+    if crop is None or crop.size == 0 or len(crop.shape) != 3:
         return 0
 
-    # Сделай фиксированный размер-квадрат, чтобы при вращении углы букв не срезались
-    SQUARE_SIZE = 128
-    crop_gray = cv2.resize(crop_gray, (SQUARE_SIZE, SQUARE_SIZE))
-    template_resized = cv2.resize(template, (SQUARE_SIZE, SQUARE_SIZE))
-    template_resized = clahe.apply(template_resized)
+    # 1. Маска оранжевого в HSV
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, lower, upper)
 
-    # Вспомогательная функция для поворота квадратного изображения
-    def rotate_image(image, angle):
-        center = (SQUARE_SIZE // 2, SQUARE_SIZE // 2)
-        rot_mat = cv2.getRotationMatrix2D(center, angle, 1.0)
-        return cv2.warpAffine(image, rot_mat, (SQUARE_SIZE, SQUARE_SIZE), flags=cv2.INTER_LINEAR)
+    # 2. Чистим шум (закрываем тени от выдавленной буквы внутри грани)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
 
-    # --- ЭТАП 1: ГРУБЫЙ ПОИСК (0, 90, 180, 270) ---
-    best_coarse_angle = 0
-    max_coarse_val = -1
-    
-    for angle in [0, 90, 180, 270]:
-        rotated_template = rotate_image(template_resized, angle)
-        res = cv2.matchTemplate(crop_gray, rotated_template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, _ = cv2.minMaxLoc(res)
-        
-        if max_val > max_coarse_val:
-            max_coarse_val = max_val
-            best_coarse_angle = angle
+    # 3. Крупнейший контур = грань кубика
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return 0
 
-    # --- ЭТАП 2: ТОЧНЫЙ ПОИСК (±45° с шагом 1°) ---
-    best_fine_angle = best_coarse_angle
-    max_fine_val = max_coarse_val
-    
-    start_angle = best_coarse_angle - 45
-    end_angle = best_coarse_angle + 45
-    
-    for angle in range(start_angle, end_angle + 1):
-        if angle in [0, 90, 180, 270] and angle != best_coarse_angle:
-            continue
-            
-        rotated_template = rotate_image(template_resized, angle)
-        res = cv2.matchTemplate(crop_gray, rotated_template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, _ = cv2.minMaxLoc(res)
-        
-        if max_val > max_fine_val:
-            max_fine_val = max_val
-            best_fine_angle = angle
+    largest = max(contours, key=cv2.contourArea)
+    # Отсекаем мусор: контур должен занимать заметную часть кропа
+    if cv2.contourArea(largest) < 0.05 * crop.shape[0] * crop.shape[1]:
+        return 0
 
-    return best_fine_angle % 360
-# Пример использования:
-# Если объект в центре кадра (1640, 1232) на высоте 1000 мм:
+    # 4. Угол минимального описывающего прямоугольника
+    (_, _), (_, _), angle = cv2.minAreaRect(largest)
 
-print(get_real_coords(1640, 1232, 1000)) # Результат: (0.0, 0.0)
+    return round(_normalize_angle_90(angle), 1)
 
-# Если объект смещен к краю (например, точка 2000, 500) на высоте 1000 мм:
-x, y = get_real_coords(2000, 500, 1000)
-print(f"Координаты объекта: X = {x} мм, Y = {y} мм")
+
+def _orientation_360(contour):
+    """
+    Угол главной оси контура (PCA) с разрешением направления через 3-й момент.
+    Возвращает [0, 360). Отсчёт против часовой от оси +X в координатах изображения.
+    """
+    pts = contour.reshape(-1, 2).astype(np.float64)
+    if len(pts) < 5:
+        return 0.0
+
+    mean = pts.mean(axis=0)
+    centered = pts - mean
+    cov = np.cov(centered.T)
+    eigvals, eigvecs = np.linalg.eigh(cov)          # по возрастанию собственных значений
+    major = eigvecs[:, int(np.argmax(eigvals))]     # главная ось — максимальная дисперсия
+
+    # Проекция точек на главную ось: знак асимметрии (skewness) задаёт направление,
+    # чтобы различить букву и её поворот на 180°.
+    proj = centered @ major
+    if np.mean(proj ** 3) < 0:
+        major = -major
+
+    angle = np.degrees(np.arctan2(major[1], major[0]))
+    return float(angle % 360.0)
+
+
+def get_letter_angle(crop, lower=ORANGE_LOWER, upper=ORANGE_UPPER):
+    """
+    Полный угол поворота БУКВЫ [0, 360) по её максимальному контуру.
+
+    Буква выдавлена на оранжевой грани и видна как более тёмная область (тень в канавке).
+    Шаги: выделяем грань кубика -> внутри неё ищем тёмный контур буквы ->
+    берём максимальный контур -> главная ось через PCA + направление по асимметрии.
+    Если букву выделить не удалось — откатываемся на угол грани кубика get_angel (0..90).
+    """
+    if crop is None or crop.size == 0 or len(crop.shape) != 3:
+        return 0
+
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    cube_mask = cv2.inRange(hsv, lower, upper)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    cube_mask = cv2.morphologyEx(cube_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    if cv2.countNonZero(cube_mask) < 0.05 * crop.shape[0] * crop.shape[1]:
+        return get_angel(crop, lower=lower, upper=upper)
+
+    # Внутри грани буква = тёмные пиксели. Порог = среднее − 0.7·σ по области грани.
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    cube_pixels = gray[cube_mask > 0]
+    thr = int(np.clip(cube_pixels.mean() - 0.7 * cube_pixels.std(), 1, 254))
+
+    letter_mask = cv2.inRange(gray, 0, thr)
+    letter_mask = cv2.bitwise_and(letter_mask, cube_mask)
+    letter_mask = cv2.morphologyEx(letter_mask, cv2.MORPH_OPEN, kernel, iterations=1)
+
+    # ОТСЛЕЖИВАНИЕ МАКСИМАЛЬНОГО КОНТУРА буквы
+    contours, _ = cv2.findContours(letter_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not contours:
+        return get_angel(crop, lower=lower, upper=upper)
+
+    largest = max(contours, key=cv2.contourArea)
+    if cv2.contourArea(largest) < 0.01 * crop.shape[0] * crop.shape[1]:
+        return get_angel(crop, lower=lower, upper=upper)
+
+    return round(_orientation_360(largest), 1)
+
+
+if __name__ == "__main__":
+    # Демонстрация перевода пиксельных координат в метрические.
+    # Запускается только при прямом вызове файла, а не при импорте на сервере.
+    print(get_real_coords(1640, 1232, 1000))
+    x, y = get_real_coords(2000, 500, 1000)
+    print(f"Координаты объекта: X = {x} мм, Y = {y} мм")

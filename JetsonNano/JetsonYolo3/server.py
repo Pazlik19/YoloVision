@@ -12,7 +12,7 @@ from ultralytics import YOLO
 # Импорт конфигурационных параметров и утилит проекта
 from config import MODEL_DIR, ZMQ_ADDRESS, CAMERA_HEIGHT_MM, DEFAULT_FONT_PATH
 from draw_utils import draw_multiple_texts
-from Coardinate import get_real_coords, get_angel
+from Coardinate import get_real_coords, get_angel, get_letter_angle
 from TextDetection2 import SymbolClassifier
 
 def parse_args():
@@ -108,8 +108,8 @@ def main():
                         else:
                             display_label = label
                             box_color = COLOR_CLASSIFIED # Успешная классификация ResNet — Зеленая рамка
-                            # engel = get_angel(crop, label)
-                            
+                            engel = get_letter_angle(crop)  # полный угол буквы (0..360), откат на угол грани
+
                         texts_to_draw.append((f"ID: {i} ({label} {confidence:.1f}%)", (x1, max(0, y1 - 50))))
                     
                     # Сценарий сквозной детекции YOLO
@@ -120,8 +120,8 @@ def main():
                         box_color = COLOR_CLASSIFIED # В этом режиме YOLO делает всё, ставим зеленую
                         
                         if crop.size > 0:
-                            engel = get_angel(crop, display_label)
-                            
+                            engel = get_letter_angle(crop)  # полный угол буквы (0..360)
+
                         texts_to_draw.append((f"ID: {i} ({display_label} {confidence:.1f}%)", (x1, max(0, y1 - 50))))
 
                     # --- ОТРИСОВКА РАМКИ (Bounding Box) ---
