@@ -48,6 +48,12 @@
 - **`classifaer.py`** — раскладка кропов по классам; неуверенные → `low_confidence`.
 - **`CalculeteImage.py`** — статистика баланса классов + выгрузка в Excel.
 
+### Обучение детектора кубиков (`YoloModelTrain/`)
+
+- **`autoDataSetDetection.py`** — авторазметка датасета моделью **SAM 3** по промпту «the cube»: маски → bounding box формата YOLO, генерация `data.yaml`.
+- **`SplitDataset.py`** — разбиение датасета на train/val (80/20) и обновление `data.yaml`.
+- **`YoloTrainDetect.py`** — обучение детектора **YOLO11n** (1 класс `cube`) → `best.pt` → экспорт в `best.engine` (TensorRT).
+
 ---
 
 > 📐 Полный комплект диаграмм для пояснительной записки (с нумерацией рисунков
