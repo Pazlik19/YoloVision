@@ -107,4 +107,3 @@ except KeyboardInterrupt:
 finally:
     cap.release()
     out.release()
-    print(f"Файл успешно сохранен в {Path.cwd()}/output_vision.avi")

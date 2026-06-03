@@ -32,7 +32,7 @@ def sort_images_with_threshold(source_dir, output_root, model_path, config_path,
             # 4. Проверка порога
             if confidence >= threshold:
                 # Если всё ок, кладем в папку с названием класса
-                target_folder_name = f"{label}"
+                target_folder_name = f"latter_{label}"
                 target_folder_path = os.path.join(output_root, target_folder_name)
             else:
                 # Если нейросеть сомневается, отправляем в спецпапку
@@ -46,7 +46,7 @@ def sort_images_with_threshold(source_dir, output_root, model_path, config_path,
             shutil.copy(file_path, os.path.join(target_folder_path, filename))
             
         except Exception as e:
-            print(f"Ошибка при обработке {filename}: {e}")  
+            print(f"Ошибка при обработке {filename}: {e}")
 
 # --- Настройки ---
 CURENT_PATH = Path(__file__).parent

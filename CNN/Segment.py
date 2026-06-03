@@ -88,7 +88,7 @@ OUTPUT_CROPS_DIR = 'detected_objects' # Папка, куда сохранять 
 # Если ты обучил свою модель (например, на символы), укажи путь к ней:
 # MODEL_WEIGHTS = 'weights/best.pt'
 CURENT_DIR = Path(__file__).parent
-MODEL_WEIGHTS = CURENT_DIR.parent / "Models"/ "best1.pt"
+MODEL_WEIGHTS = CURENT_DIR.parent / "Models"/ "best.pt"
 
 if __name__ == "__main__":
     crop_objects_from_directory(INPUT_IMAGES_DIR, OUTPUT_CROPS_DIR, MODEL_WEIGHTS)

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import pandas as pd
 
 def count_images_in_folders(root_path):
     # Список расширений, которые мы считаем изображениями
@@ -18,32 +19,85 @@ def count_images_in_folders(root_path):
     for item in root.iterdir():
         if item.is_dir():
             # Считаем файлы с нужными расширениями в текущей подпапке
-            count = sum(1 for f in item.iterdir() if f.suffix.lower() in valid_extensions)
-            stats[item.name] = count
+            img_count = sum(1 for f in item.iterdir() if f.suffix.lower() in valid_extensions)
+            stats[item.name] = img_count
 
     if not stats:
         print("Изображения или подпапки не найдены.")
         return
 
-    # Визуализация
+    # Вычисляем общую сумму и среднее значение
+    total_images = sum(stats.values())
+    total_folders = len(stats)
+    avg_images = total_images / total_folders
+
+    # Подготовка данных для консоли и Excel
     max_label_length = max(len(name) for name in stats.keys())
+    if max_label_length < 5:
+        max_label_length = 5
+        
     max_count = max(stats.values()) if stats.values() else 1
     
-    print(f"{'Папка':<{max_label_length}} | {'Кол-во':<6} | График")
-    print("-" * (max_label_length + 20))
-    count = 0 
-    for i, (folder, count) in enumerate(sorted(stats.items())):
-        # Рисуем полоску
-        bar_length = int((count / max_count) * 30) if max_count > 0 else 0
+    # Шапка таблицы в консоли
+    print(f"{'Папка':<{max_label_length}} | {'Кол-во':<6} | {'Откл. от ср.':<12} | График")
+    print("-" * (max_label_length + 35))
+    
+    # Списки для сборки датафрейма Excel
+    excel_data = []
+    
+    for folder, img_count in sorted(stats.items()):
+        # Считаем точное отклонение
+        deviation = img_count - avg_images
+        
+        # Строковое представление для консоли (с плюсом или минусом)
+        if deviation > 0:
+            dev_str = f"-{abs(deviation):.1f}"  # Нужно убавить
+            excel_dev = -round(abs(deviation), 1)
+        elif deviation < 0:
+            dev_str = f"+{abs(deviation):.1f}"  # Нужно добавить
+            excel_dev = round(abs(deviation), 1)
+        else:
+            dev_str = "0.0"
+            excel_dev = 0.0
+            
+        # Рисуем полоску графика для консоли
+        bar_length = int((img_count / max_count) * 30) if max_count > 0 else 0
         bar = "█" * bar_length
         
-        # Обратите внимание на {max_label_length} в фигурных скобках внутри f-строки
-        print(f"{folder:<{max_label_length}} | {count:<6} | {bar}")
-        count = i
-    summ =sum(stats.values())
-    print(f"\nВсего изображений: {summ}")
-    print(f'Средне: {summ/count}')
-# Укажите путь к вашей папке здесь
+        print(f"{folder:<{max_label_length}} | {img_count:<6} | {dev_str:<12} | {bar}")
+        
+        # Добавляем чистые данные в список для Excel
+        excel_data.append({
+            "Название папки": folder,
+            "Количество изображений": img_count,
+            "Действие (Отклонение)": excel_dev
+        })
+        
+    print("-" * (max_label_length + 35))
+    print(f"Всего папок: {total_folders}")
+    print(f"Всего изображений: {total_images}")
+    print(f"Среднее количество: {avg_images:.2f}")
+
+    # --- СЕКЦИЯ ГЕНЕРАЦИИ EXCEL ---
+    # Создаем DataFrame из собранных данных
+    df = pd.DataFrame(excel_data)
+    
+    # Добавляем строку "Итого" и "Среднее" в самый конец Excel-таблицы
+    summary_rows = pd.DataFrame([
+        {"Название папки": "ВСЕГО ИЗОБРАЖЕНИЙ:", "Количество изображений": total_images, "Действие (Отклонение)": ""},
+        {"Название папки": "СРЕДНЕЕ НА ПАПКУ:", "Количество изображений": round(avg_images, 2), "Действие (Отклонение)": ""}
+    ])
+    df = pd.concat([df, summary_rows], ignore_index=True)
+    
+    # Путь для сохранения Excel (в папку со скриптом)
+    excel_path = Path(__file__).parent / "dataset_stats.xlsx"
+    
+    # Сохраняем в файл
+    df.to_excel(excel_path, index=False, sheet_name="Статистика датасета")
+    print(f"\n[INFO] Excel таблица успешно сохранена: {excel_path.name}")
+
 if __name__ == "__main__":
-    path_to_check = "data/train"  # Замените на свой путь
+    script_dir = Path(__file__).parent
+    path_to_check = script_dir / "data/train"  
+    
     count_images_in_folders(path_to_check)

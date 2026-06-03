@@ -1,0 +1,32 @@
+# ============================================================
+#  Зависимости проекта системы компьютерного зрения и навигации
+# ============================================================
+# Установка на ПК (обучение + live-распознавание):
+#     pip install -r requirements.txt
+#
+# ВАЖНО (Jetson Nano):
+#   torch / torchvision НЕ ставятся через pip на Jetson — используйте
+#   сборки от NVIDIA (JetPack) или docker-образ ultralytics:
+#   ultralytics/ultralytics:latest-jetson-jetpack4 (см. JetsonNano/Stup.txt).
+# ============================================================
+
+# --- Ядро: распознавание и обучение ---
+torch
+torchvision
+ultralytics            # YOLO (детекция/классификация, экспорт в TensorRT)
+
+# --- Обработка изображений ---
+opencv-python          # cv2
+Pillow                 # PIL
+numpy
+
+# --- Обучение / визуализация / статистика ---
+matplotlib
+pandas
+openpyxl               # запись dataset_stats.xlsx через pandas.to_excel
+tqdm                   # прогресс-бары
+
+# --- Jetson Nano: стриминг и сетевой обмен ---
+pyzmq                  # zmq — канал кадр/телеметрия (server.py <-> клиент)
+flask                  # MJPEG веб-стрим
+paramiko               # отправка датасета по SSH (steamPhoto.py)
