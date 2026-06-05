@@ -9,7 +9,9 @@ from flask import Flask, Response, jsonify
 import random
 
 # Импортируем буфер сцены (файл bufer.py должен лежать в той же директории)
-from bufer import Scene 
+from bufer import Scene
+# HTML-страница карты поля (canvas: поле + FOV камеры + объекты)
+from map_view import MAP_HTML
 
 # --- Конфигурация системы ---
 # Если Docker запущен с флагом --net=host, используем localhost. 
@@ -89,12 +91,26 @@ def video_feed():
 @app.route("/data")
 def get_scene_data():
     """Телеметрический эндпоинт: отдает накопленные в буфере данные в JSON."""
+    # Текущая позиция камеры (центр FOV) — нужна карте, чтобы рисовать
+    # прямоугольник зоны сканирования и подсвечивать объекты в кадре.
+    cam_x, cam_y = camera_tracker.get_position()
     return jsonify({
         "current_word": scene_buffer.get_word(),
         "objects_count": len(scene_buffer.objects),
         "timestamp": time.time(),
-        "objects": scene_buffer.get_all_objects_data()  
+        "objects": scene_buffer.get_all_objects_data(),
+        "camera": {
+            "x": round(cam_x, 1),
+            "y": round(cam_y, 1),
+            "fov_w": scene_buffer.fov_width,
+            "fov_h": scene_buffer.fov_height,
+        },
     })
+
+@app.route("/map")
+def map_page():
+    """Интерактивная карта поля: поле + FOV камеры + найденные объекты."""
+    return Response(MAP_HTML, mimetype="text/html")
 
 # --- Основной вычислительный поток (Захват + ZMQ) ---
 def run_vision():
@@ -184,6 +200,7 @@ if __name__ == '__main__':
     print("Система успешно запущена на Jetson Nano!")
     print("Стрим видео (MJPEG):  http://0.0.0.0:5000")
     print("Данные буфера (JSON): http://0.0.0.0:5000/data")
+    print("Карта поля:           http://0.0.0.0:5000/map")
     print("="*50 + "\n")
     
     # 2. Запускаем веб-сервер Flask в главном потоке

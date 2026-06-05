@@ -13,6 +13,9 @@ def draw_multiple_texts(image, texts_with_positions, font_path, font_size=24, co
         font = ImageFont.load_default()
         
     for text, position in texts_with_positions:
-        draw.text(position, text, font=font, fill=color)
+        # stroke_width даёт тёмную обводку: мелкий текст остаётся читаемым
+        # и на светлом столе, и на оранжевой грани кубика.
+        draw.text(position, text, font=font, fill=color,
+                  stroke_width=2, stroke_fill=(0, 0, 0))
         
     return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
