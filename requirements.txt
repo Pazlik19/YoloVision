@@ -25,8 +25,15 @@ matplotlib
 pandas
 openpyxl               # запись dataset_stats.xlsx через pandas.to_excel
 tqdm                   # прогресс-бары
+PyYAML                 # генерация data.yaml для YOLO-датасета (YoloModelTrain/)
 
 # --- Jetson Nano: стриминг и сетевой обмен ---
 pyzmq                  # zmq — канал кадр/телеметрия (server.py <-> клиент)
 flask                  # MJPEG веб-стрим
 paramiko               # отправка датасета по SSH (steamPhoto.py)
+
+# --- Jetson Nano: ускорение инференса (ставится ОТДЕЛЬНО, не через pip) ---
+# torch2trt            # ResNet18 -> TensorRT (Models/convertResnetTensor.py).
+#                      # Установка на Jetson:
+#                      #   git clone https://github.com/NVIDIA-AI-IOT/torch2trt
+#                      #   cd torch2trt && python3 setup.py install
